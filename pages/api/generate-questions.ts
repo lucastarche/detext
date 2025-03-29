@@ -25,7 +25,7 @@ export default async function handler(
 
   try {
     const apiKey = process.env.GEMINI_API_KEY;
-    
+
     if (!apiKey) {
       return res.status(500).json({ error: 'Server configuration error', details: 'API key is missing' });
     }
@@ -55,31 +55,32 @@ export default async function handler(
 
     // Log response status for debugging
     console.log('Gemini API response status:', response.status);
-    
+
     if (!response.ok) {
       // Try to get more detailed error information
       try {
         const errorData = await response.json();
-        return res.status(response.status).json({ 
-          error: 'Gemini API error', 
+        return res.status(response.status).json({
+          error: 'Gemini API error',
           details: JSON.stringify(errorData)
         });
       } catch (e) {
-        return res.status(response.status).json({ 
-          error: 'Gemini API error', 
+        console.error(e);
+        return res.status(response.status).json({
+          error: 'Gemini API error',
           details: `Status ${response.status} - ${response.statusText}`
         });
       }
     }
 
     const data = await response.json();
-    
+
     // Extract questions from the response
     let questions: string[] = [];
-    
+
     if (data.candidates && data.candidates[0]?.content?.parts) {
       const responseText = data.candidates[0].content.parts[0].text;
-      
+
       // Extract questions with the "Q: " prefix
       questions = responseText
         .split('\n')
@@ -87,19 +88,19 @@ export default async function handler(
         .map((line: string) => line.trim().replace(/^Q:\s*/, ''))
         .filter(Boolean);
     }
-    
+
     // Ensure we have exactly 3 questions, or pad if fewer
     while (questions.length < 3) {
       questions.push('What is the main idea of this text?');
     }
-    
+
     // Limit to 3 questions if we have more
     questions = questions.slice(0, 3);
-    
+
     return res.status(200).json({ questions });
   } catch (error) {
     console.error('Error generating questions:', error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Failed to generate questions',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
