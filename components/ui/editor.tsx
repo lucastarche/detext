@@ -25,7 +25,14 @@ export function Editor() {
     if (editorRef.current) {
       editorRef.current.innerHTML = ''
       editorRef.current.focus()
+      setReferences([]) // Clear references when document is cleared
     }
+  }
+
+  // Function to find spans by reference ID
+  const findSpanById = (id: string): HTMLElement | null => {
+    if (!editorRef.current) return null
+    return editorRef.current.querySelector(`span[data-ref-id="${id}"]`)
   }
 
   // Set up the editor with proper text direction
@@ -92,11 +99,28 @@ export function Editor() {
         setIsDialogOpen(true)
       }
     }
+
+    // Monitor changes to detect when a reference span is deleted
+    const handleEditorInput = (e: Event) => {
+      // Get all reference spans in the editor
+      const currentRefs = new Set<string>()
+      const spans = editor.querySelectorAll('span[data-ref-id]')
+      
+      spans.forEach(span => {
+        const refId = span.getAttribute('data-ref-id')
+        if (refId) currentRefs.add(refId)
+      })
+      
+      // Check if any reference is missing from the editor
+      setReferences(prev => prev.filter(ref => currentRefs.has(ref.id)))
+    }
     
     editor.addEventListener('paste', handleEditorPaste)
+    editor.addEventListener('input', handleEditorInput)
     
     return () => {
       editor.removeEventListener('paste', handleEditorPaste)
+      editor.removeEventListener('input', handleEditorInput)
       document.head.removeChild(style)
     }
   }, [])
@@ -113,18 +137,21 @@ export function Editor() {
       // Replace marker with the plain text if we didn't add a reference
       if (marker.parentNode) {
         const textNode = document.createTextNode(selectedText)
-        const spaceNode = document.createTextNode(' ')
+        const spaceNode = document.createTextNode('\u00A0') // Non-breaking space
+        const normalTextNode = document.createElement('span') // Empty span for normal text
+        normalTextNode.setAttribute('data-normal', 'true')     // Mark as normal text container
         
-        // Insert text and space, then remove marker
+        // Insert text, space, normal text container, and remove marker
         marker.parentNode.insertBefore(textNode, marker)
         marker.parentNode.insertBefore(spaceNode, marker)
+        marker.parentNode.insertBefore(normalTextNode, marker)
         marker.parentNode.removeChild(marker)
         
-        // Set cursor after the space
+        // Set cursor in the normal text container
         const selection = window.getSelection()
         if (selection) {
           const range = document.createRange()
-          range.setStartAfter(spaceNode)
+          range.setStart(normalTextNode, 0)
           range.collapse(true)
           selection.removeAllRanges()
           selection.addRange(range)
@@ -155,22 +182,26 @@ export function Editor() {
     const span = document.createElement('span')
     span.className = 'text-blue-600 font-medium'
     span.textContent = selectedText
+    span.setAttribute('data-ref-id', newReference.id) // Add reference ID as data attribute
     
-    // Create a space after the span to ensure cursor is outside the colored span
-    const spaceNode = document.createTextNode(' ')
+    // Create a space node and a separate normal text node for typing
+    const spaceNode = document.createTextNode('\u00A0') // Non-breaking space
+    const textNode = document.createElement('span')  // Empty span for normal text
+    textNode.setAttribute('data-normal', 'true')     // Mark as normal text container
     
     // Find marker if it exists
     const marker = document.getElementById('paste-position-marker')
     if (marker && marker.parentNode) {
-      // Insert span and space
+      // Insert span, space, and text container
       marker.parentNode.insertBefore(span, marker)
       marker.parentNode.insertBefore(spaceNode, marker)
+      marker.parentNode.insertBefore(textNode, marker)
       marker.parentNode.removeChild(marker)
       
-      // Set cursor position after the space, not in the colored span
+      // Set cursor position in the normal text container
       const selection = window.getSelection()
       const range = document.createRange()
-      range.setStartAfter(spaceNode)
+      range.setStart(textNode, 0)
       range.collapse(true)
       selection?.removeAllRanges()
       selection?.addRange(range)
@@ -180,13 +211,15 @@ export function Editor() {
       if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0)
         
-        // Insert span and space
+        // Insert span, space, and text container
         range.insertNode(span)
         range.setStartAfter(span)
         range.insertNode(spaceNode)
-        
-        // Move cursor after the space
         range.setStartAfter(spaceNode)
+        range.insertNode(textNode)
+        
+        // Move cursor into the normal text container
+        range.setStart(textNode, 0)
         range.collapse(true)
         selection.removeAllRanges()
         selection.addRange(range)
@@ -194,11 +227,12 @@ export function Editor() {
         // If no selection, append to the end
         editor.appendChild(span)
         editor.appendChild(spaceNode)
+        editor.appendChild(textNode)
         
-        // Set cursor after space
+        // Set cursor in text container
         const selection = window.getSelection()
         const range = document.createRange()
-        range.setStartAfter(spaceNode)
+        range.setStart(textNode, 0)
         range.collapse(true)
         selection?.removeAllRanges()
         selection?.addRange(range)
@@ -213,7 +247,17 @@ export function Editor() {
   }
 
   const handleRemoveReference = (id: string) => {
+    // Remove the reference from the list
     setReferences(references.filter(ref => ref.id !== id))
+    
+    // Find and remove the corresponding span from the editor
+    const spanToRemove = findSpanById(id)
+    if (spanToRemove && editorRef.current) {
+      spanToRemove.remove()
+      
+      // Refocus the editor
+      editorRef.current.focus()
+    }
   }
 
   return (
