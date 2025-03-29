@@ -17,8 +17,8 @@ export function Editor() {
   const charAmount = useRef(0)
   const backspaceAmount = useRef(0)
 
-  const charSeries = useRef<Number[]>([])
-  const backspaceSeries = useRef<Number[]>([])
+  const charSeries = useRef<number[]>([])
+  const backspaceSeries = useRef<number[]>([])
 
   const [references, setReferences] = useState<Reference[]>([])
   const [selectedText, setSelectedText] = useState('')
@@ -315,10 +315,10 @@ export function Editor() {
     const charSeriesString = charSeries.current.join(',');
     const backspaceSeriesString = backspaceSeries.current.join(',');
     const csvContent = `${charSeriesString}\n${backspaceSeriesString}`;
-    
+
     // Create a Blob from the CSV content
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    
+
     // Create a download link and trigger the download
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
