@@ -14,6 +14,12 @@ interface Reference {
 }
 
 export function Editor() {
+  const charAmount = useRef(0)
+  const backspaceAmount = useRef(0)
+
+  const charSeries = useRef<Number[]>([])
+  const backspaceSeries = useRef<Number[]>([])
+
   const [references, setReferences] = useState<Reference[]>([])
   const [selectedText, setSelectedText] = useState('')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -22,6 +28,12 @@ export function Editor() {
 
   // Clear document function
   const handleClearDocument = () => {
+    // TODO: no imprimir las series cuando reseteo el documento
+    console.log(charSeries.current);
+    console.log(backspaceSeries.current);
+
+    charAmount.current = backspaceAmount.current = 0;
+    charSeries.current = backspaceSeries.current = [];
     if (editorRef.current) {
       editorRef.current.innerHTML = ''
       editorRef.current.focus()
@@ -45,7 +57,7 @@ export function Editor() {
     editor.setAttribute('contenteditable', 'true')
     editor.style.direction = 'ltr'
     editor.style.textAlign = 'left'
-    
+
     // Add styles for blue text
     const style = document.createElement('style')
     style.textContent = `
@@ -65,27 +77,27 @@ export function Editor() {
       }
     `
     document.head.appendChild(style)
-    
+
     // Focus the editor on load
     setTimeout(() => {
       editor.focus()
     }, 100)
-    
+
     // Add proper event listeners
     const handleEditorPaste = (e: ClipboardEvent) => {
       if (!e.clipboardData) return
-      
+
       const text = e.clipboardData.getData('text/plain')
       if (text.trim()) {
         e.preventDefault()
-        
+
         // Store the current selection/cursor position
         const selection = window.getSelection()
         const range = selection?.getRangeAt(0)
-        
+
         // Save the text for the dialog
         setSelectedText(text)
-        
+
         // Create a temporary marker to save cursor position
         const tempMarker = document.createElement('span')
         tempMarker.id = 'paste-position-marker'
@@ -94,7 +106,7 @@ export function Editor() {
         } else {
           editor.appendChild(tempMarker)
         }
-        
+
         // Show dialog after ensuring cursor position is marked
         setIsDialogOpen(true)
       }
@@ -102,22 +114,29 @@ export function Editor() {
 
     // Monitor changes to detect when a reference span is deleted
     const handleEditorInput = (e: Event) => {
+      const ev = e as InputEvent;
+      if (ev.inputType === "insertText") {
+        charAmount.current++;
+      } else if (ev.inputType.startsWith("delete")) {
+        backspaceAmount.current++;
+      }
+
       // Get all reference spans in the editor
       const currentRefs = new Set<string>()
       const spans = editor.querySelectorAll('span[data-ref-id]')
-      
+
       spans.forEach(span => {
         const refId = span.getAttribute('data-ref-id')
         if (refId) currentRefs.add(refId)
       })
-      
+
       // Check if any reference is missing from the editor
       setReferences(prev => prev.filter(ref => currentRefs.has(ref.id)))
     }
-    
+
     editor.addEventListener('paste', handleEditorPaste)
     editor.addEventListener('input', handleEditorInput)
-    
+
     return () => {
       editor.removeEventListener('paste', handleEditorPaste)
       editor.removeEventListener('input', handleEditorInput)
@@ -131,12 +150,12 @@ export function Editor() {
       // If dialog was closed, clean up marker
       const editor = editorRef.current
       const marker = document.getElementById('paste-position-marker')
-      
+
       if (!marker || !editor) return
-      
+
       // Check if this was closed by clicking "Add Reference" or just closed/canceled
       const wasAddedAsReference = references.some(ref => ref.text === selectedText)
-      
+
       if (marker.parentNode) {
         if (wasAddedAsReference) {
           // Do nothing - the handleAddReference function already handled the marker
@@ -145,16 +164,16 @@ export function Editor() {
           // Store references to parent and siblings before removing marker
           const parent = marker.parentNode;
           const prevSibling = marker.previousSibling;
-          
+
           // If dialog was canceled (not added as reference), just remove the marker
           // without adding text (proper cancel behavior)
           parent.removeChild(marker)
-          
+
           // Set cursor at the position where the marker was
           const selection = window.getSelection()
           if (selection) {
             const range = document.createRange()
-            
+
             // Use the stored references to set the cursor position
             if (prevSibling) {
               range.setStartAfter(prevSibling)
@@ -163,11 +182,11 @@ export function Editor() {
             } else {
               range.selectNodeContents(parent)
             }
-            
+
             range.collapse(true)
             selection.removeAllRanges()
             selection.addRange(range)
-            
+
             // Focus editor
             editor.focus()
           }
@@ -186,22 +205,22 @@ export function Editor() {
     }
 
     setReferences([...references, newReference])
-    
+
     // Insert the reference at cursor position
     const editor = editorRef.current
     if (!editor) return
-    
+
     // Create the span with the reference text
     const span = document.createElement('span')
     span.className = 'text-blue-600 font-medium'
     span.textContent = selectedText
     span.setAttribute('data-ref-id', newReference.id) // Add reference ID as data attribute
-    
+
     // Create a space node and a separate normal text node for typing
     const spaceNode = document.createTextNode('\u00A0') // Non-breaking space
     const textNode = document.createElement('span')  // Empty span for normal text
     textNode.setAttribute('data-normal', 'true')     // Mark as normal text container
-    
+
     // Find marker if it exists
     const marker = document.getElementById('paste-position-marker')
     if (marker && marker.parentNode) {
@@ -210,7 +229,7 @@ export function Editor() {
       marker.parentNode.insertBefore(spaceNode, marker)
       marker.parentNode.insertBefore(textNode, marker)
       marker.parentNode.removeChild(marker)
-      
+
       // Set cursor position in the normal text container
       const selection = window.getSelection()
       const range = document.createRange()
@@ -223,14 +242,14 @@ export function Editor() {
       const selection = window.getSelection()
       if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0)
-        
+
         // Insert span, space, and text container
         range.insertNode(span)
         range.setStartAfter(span)
         range.insertNode(spaceNode)
         range.setStartAfter(spaceNode)
         range.insertNode(textNode)
-        
+
         // Move cursor into the normal text container
         range.setStart(textNode, 0)
         range.collapse(true)
@@ -241,7 +260,7 @@ export function Editor() {
         editor.appendChild(span)
         editor.appendChild(spaceNode)
         editor.appendChild(textNode)
-        
+
         // Set cursor in text container
         const selection = window.getSelection()
         const range = document.createRange()
@@ -251,23 +270,32 @@ export function Editor() {
         selection?.addRange(range)
       }
     }
-    
+
     // Force focus back to editor
     editor.focus()
-    
+
     setIsDialogOpen(false)
     setCitation('')
   }
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      charSeries.current.push(charAmount.current);
+      backspaceSeries.current.push(backspaceAmount.current);
+    }, 100);
+
+    return () => clearInterval(timer);
+  }, []);
+
   const handleRemoveReference = (id: string) => {
     // Remove the reference from the list
     setReferences(references.filter(ref => ref.id !== id))
-    
+
     // Find and remove the corresponding span from the editor
     const spanToRemove = findSpanById(id)
     if (spanToRemove && editorRef.current) {
       spanToRemove.remove()
-      
+
       // Refocus the editor
       editorRef.current.focus()
     }
@@ -292,9 +320,10 @@ export function Editor() {
           <div className="flex flex-row gap-6">
             <div className="flex-1 flex flex-col">
               <div className="border rounded-lg">
+                {/* TODO: Boton de guardar las series en .csv */}
                 <div className="py-2 px-4 bg-muted/50 border-b flex items-center justify-between">
                   <div className="text-sm font-medium">Document</div>
-                  <button 
+                  <button
                     className="h-7 w-7 inline-flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-muted"
                     onClick={handleClearDocument}
                   >
@@ -302,7 +331,7 @@ export function Editor() {
                     <span className="sr-only">Clear document</span>
                   </button>
                 </div>
-                <div 
+                <div
                   ref={editorRef}
                   className="p-4 min-h-[400px] max-h-[600px] overflow-y-auto focus:outline-none text-black text-base leading-relaxed"
                   style={{
@@ -345,9 +374,9 @@ export function Editor() {
                                   <span className="truncate">{ref.citation}</span>
                                 </div>
                               </div>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 className="h-6 w-6 text-muted-foreground hover:text-destructive"
                                 onClick={() => handleRemoveReference(ref.id)}
                               >
