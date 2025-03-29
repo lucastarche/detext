@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { RefreshCw, Book, FileText, Trash2 } from 'lucide-react'
+import { RefreshCw, Book, FileText, Trash2, Download } from 'lucide-react'
 
 interface Reference {
   id: string
@@ -33,7 +33,8 @@ export function Editor() {
     console.log(backspaceSeries.current);
 
     charAmount.current = backspaceAmount.current = 0;
-    charSeries.current = backspaceSeries.current = [];
+    charSeries.current = [];
+    backspaceSeries.current = [];
     if (editorRef.current) {
       editorRef.current.innerHTML = ''
       editorRef.current.focus()
@@ -307,6 +308,28 @@ export function Editor() {
     setCitation('')
   }
 
+  // Handle export to CSV
+  const handleExportToCsv = () => {
+    // Export character series and backspace series as CSV file
+    // Generate CSV content with character series in first row and backspace series in second row
+    const charSeriesString = charSeries.current.join(',');
+    const backspaceSeriesString = backspaceSeries.current.join(',');
+    const csvContent = `${charSeriesString}\n${backspaceSeriesString}`;
+    
+    // Create a Blob from the CSV content
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    
+    // Create a download link and trigger the download
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `detext-metrics-${new Date().toISOString().slice(0, 10)}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="container mx-auto max-w-6xl p-6">
       <div className="shadow-sm border rounded-lg">
@@ -320,16 +343,28 @@ export function Editor() {
           <div className="flex flex-row gap-6">
             <div className="flex-1 flex flex-col">
               <div className="border rounded-lg">
-                {/* TODO: Boton de guardar las series en .csv */}
+                {/* Toolbar with document actions */}
                 <div className="py-2 px-4 bg-muted/50 border-b flex items-center justify-between">
                   <div className="text-sm font-medium">Document</div>
-                  <button
-                    className="h-7 w-7 inline-flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-muted"
-                    onClick={handleClearDocument}
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    <span className="sr-only">Clear document</span>
-                  </button>
+                  <div className="flex gap-2">
+                    {/* Export to CSV button */}
+                    <button
+                      className="h-7 px-2 inline-flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-muted"
+                      onClick={handleExportToCsv}
+                      title="Export metrics to CSV"
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      <span>Export</span>
+                    </button>
+                    <button
+                      className="h-7 w-7 inline-flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-muted"
+                      onClick={handleClearDocument}
+                      title="Clear document"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      <span className="sr-only">Clear document</span>
+                    </button>
+                  </div>
                 </div>
                 <div
                   ref={editorRef}
