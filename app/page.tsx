@@ -1,4 +1,4 @@
-// app/page.tsx
+"use client"
 import { TextareaField } from "@/components/ui/textarea-field"
 
 export default function HomePage() {
@@ -11,6 +11,7 @@ export default function HomePage() {
         description="Este campo guarda tus ideas, pensamientos o tareas."
         fontSize="lg"
         rows={8}
+        onChange={(e) => console.log(`${e.timeStamp.toFixed(0)}: ${e.nativeEvent.data}`)}
       />
     </main>
   )
