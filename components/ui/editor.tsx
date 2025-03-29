@@ -25,13 +25,10 @@ export function Editor() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [citation, setCitation] = useState('')
   const editorRef = useRef<HTMLDivElement>(null)
+  const oldTextLength = useRef(0)
 
   // Clear document function
   const handleClearDocument = () => {
-    // TODO: no imprimir las series cuando reseteo el documento
-    console.log(charSeries.current);
-    console.log(backspaceSeries.current);
-
     charAmount.current = backspaceAmount.current = 0;
     charSeries.current = [];
     backspaceSeries.current = [];
@@ -115,11 +112,15 @@ export function Editor() {
 
     // Monitor changes to detect when a reference span is deleted
     const handleEditorInput = (e: Event) => {
+      const length = editor.innerText.length;
+      const delta = Math.abs(length - oldTextLength.current);
+      oldTextLength.current = length;
+
       const ev = e as InputEvent;
       if (ev.inputType === "insertText") {
-        charAmount.current++;
+        charAmount.current += delta;
       } else if (ev.inputType.startsWith("delete")) {
-        backspaceAmount.current++;
+        backspaceAmount.current += delta;
       }
 
       // Get all reference spans in the editor
