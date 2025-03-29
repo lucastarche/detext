@@ -128,40 +128,53 @@ export function Editor() {
   // Add effect to handle dialog close
   useEffect(() => {
     if (!isDialogOpen) {
-      // If dialog was closed without adding reference, clean up marker
+      // If dialog was closed, clean up marker
       const editor = editorRef.current
       const marker = document.getElementById('paste-position-marker')
       
       if (!marker || !editor) return
       
-      // Replace marker with the plain text if we didn't add a reference
+      // Check if this was closed by clicking "Add Reference" or just closed/canceled
+      const wasAddedAsReference = references.some(ref => ref.text === selectedText)
+      
       if (marker.parentNode) {
-        const textNode = document.createTextNode(selectedText)
-        const spaceNode = document.createTextNode('\u00A0') // Non-breaking space
-        const normalTextNode = document.createElement('span') // Empty span for normal text
-        normalTextNode.setAttribute('data-normal', 'true')     // Mark as normal text container
-        
-        // Insert text, space, normal text container, and remove marker
-        marker.parentNode.insertBefore(textNode, marker)
-        marker.parentNode.insertBefore(spaceNode, marker)
-        marker.parentNode.insertBefore(normalTextNode, marker)
-        marker.parentNode.removeChild(marker)
-        
-        // Set cursor in the normal text container
-        const selection = window.getSelection()
-        if (selection) {
-          const range = document.createRange()
-          range.setStart(normalTextNode, 0)
-          range.collapse(true)
-          selection.removeAllRanges()
-          selection.addRange(range)
+        if (wasAddedAsReference) {
+          // Do nothing - the handleAddReference function already handled the marker
+          // This prevents duplicate text insertion
+        } else {
+          // Store references to parent and siblings before removing marker
+          const parent = marker.parentNode;
+          const prevSibling = marker.previousSibling;
           
-          // Focus editor
-          editor.focus()
+          // If dialog was canceled (not added as reference), just remove the marker
+          // without adding text (proper cancel behavior)
+          parent.removeChild(marker)
+          
+          // Set cursor at the position where the marker was
+          const selection = window.getSelection()
+          if (selection) {
+            const range = document.createRange()
+            
+            // Use the stored references to set the cursor position
+            if (prevSibling) {
+              range.setStartAfter(prevSibling)
+            } else if (parent.firstChild) {
+              range.setStartBefore(parent.firstChild)
+            } else {
+              range.selectNodeContents(parent)
+            }
+            
+            range.collapse(true)
+            selection.removeAllRanges()
+            selection.addRange(range)
+            
+            // Focus editor
+            editor.focus()
+          }
         }
       }
     }
-  }, [isDialogOpen, selectedText])
+  }, [isDialogOpen, selectedText, references])
 
   const handleAddReference = () => {
     if (!citation.trim() || !selectedText.trim()) return
@@ -258,6 +271,12 @@ export function Editor() {
       // Refocus the editor
       editorRef.current.focus()
     }
+  }
+
+  // Handle cancel button explicitly
+  const handleCancelDialog = () => {
+    setIsDialogOpen(false)
+    setCitation('')
   }
 
   return (
@@ -372,7 +391,7 @@ export function Editor() {
             </div>
           </div>
           <DialogFooter className="sm:justify-end">
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+            <Button variant="outline" onClick={handleCancelDialog}>
               Cancel
             </Button>
             <Button type="submit" onClick={handleAddReference}>
