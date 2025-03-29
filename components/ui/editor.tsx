@@ -5,12 +5,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { RefreshCw, Book, FileText, Trash2, Download } from 'lucide-react'
+import { RefreshCw, Book, FileText, Trash2, Download, BrainCircuit, Loader2 } from 'lucide-react'
 
 interface Reference {
   id: string
   text: string
   citation: string
+}
+
+interface Question {
+  id: string
+  text: string
 }
 
 export function Editor() {
@@ -26,6 +31,10 @@ export function Editor() {
   const [citation, setCitation] = useState('')
   const editorRef = useRef<HTMLDivElement>(null)
   const oldTextLength = useRef(0)
+
+  const [questions, setQuestions] = useState<Question[]>([])
+  const [isQuestionsDialogOpen, setIsQuestionsDialogOpen] = useState(false)
+  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false)
 
   // Clear document function
   const handleClearDocument = () => {
@@ -309,6 +318,62 @@ export function Editor() {
     setCitation('')
   }
 
+  // Generate questions using API
+  const handleGenerateQuestions = async () => {
+    const editor = editorRef.current
+    if (!editor) return
+    
+    // Get the text content from the editor
+    const text = editor.textContent || editor.innerText
+    
+    // Ensure there's enough text to generate questions
+    if (!text || text.trim().length < 30) {
+      alert("Please enter more text before generating questions.")
+      return
+    }
+    
+    try {
+      setIsGeneratingQuestions(true)
+      setQuestions([]) // Clear previous questions
+      setIsQuestionsDialogOpen(true) // Open the dialog to show loading state
+      
+      // Call API
+      const response = await fetch('/api/generate-questions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text }),
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        const errorMessage = data.details ? `Error: ${data.error} - ${data.details}` : `Error: ${data.error || 'Failed to generate questions'}`
+        console.error(errorMessage)
+        throw new Error(errorMessage)
+      }
+      
+      // Check if questions array exists in the response
+      if (!data.questions || !Array.isArray(data.questions)) {
+        throw new Error('Invalid response format: missing questions array')
+      }
+      
+      // Format questions 
+      const formattedQuestions = data.questions.map((q: string, index: number) => ({
+        id: `q-${Date.now()}-${index}`,
+        text: q
+      }))
+      
+      setQuestions(formattedQuestions)
+    } catch (error) {
+      console.error('Error generating questions:', error)
+      alert(error instanceof Error ? error.message : 'Failed to generate questions. Please try again later.')
+    } finally {
+      setIsGeneratingQuestions(false)
+    }
+  }
+
   // Handle export to CSV
   const handleExportToCsv = () => {
     // Export character series and backspace series as CSV file
@@ -348,6 +413,15 @@ export function Editor() {
                 <div className="py-2 px-4 bg-muted/50 border-b flex items-center justify-between">
                   <div className="text-sm font-medium">Document</div>
                   <div className="flex gap-2">
+                    {/* Generate Questions button */}
+                    <button
+                      className="h-7 px-2 inline-flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-muted"
+                      onClick={handleGenerateQuestions}
+                      title="Generate questions from content"
+                    >
+                      <BrainCircuit className="h-4 w-4 mr-1" />
+                      <span>Generate Questions</span>
+                    </button>
                     {/* Export to CSV button */}
                     <button
                       className="h-7 px-2 inline-flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-muted"
@@ -461,6 +535,43 @@ export function Editor() {
             </Button>
             <Button type="submit" onClick={handleAddReference}>
               Add Reference
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Questions Dialog */}
+      <Dialog open={isQuestionsDialogOpen} onOpenChange={setIsQuestionsDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Generated Questions</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            {isGeneratingQuestions ? (
+              <div className="flex flex-col items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 text-primary animate-spin mb-4" />
+                <p className="text-sm text-muted-foreground">Generating questions...</p>
+              </div>
+            ) : questions.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                No questions generated yet.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {questions.map((question, index) => (
+                  <div key={question.id} className="p-3 border rounded-md">
+                    <div className="flex items-start gap-2">
+                      <span className="font-medium text-sm text-primary min-w-[24px]">{index + 1}.</span>
+                      <p className="text-sm">{question.text}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsQuestionsDialogOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
