@@ -1,80 +1,86 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { TextareaField } from "@/components/ui/textarea-field"
 import { Button } from "@/components/ui/button"
 
-type EventLogEntry = {
-  timestamp: number
-  type: "keypress" | "click" | "change"
-  value?: string
-  key?: string
-  coords?: { x: number; y: number }
-}
-
 export default function HomePage() {
   const [text, setText] = useState("")
-  const [events, setEvents] = useState<EventLogEntry[]>([])
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const logEvent = (entry: EventLogEntry) => {
-    setEvents((prev) => [...prev, entry])
-  }
+  // Arrays para guardar datos por cada 100ms
+  const [keystrokes, setKeystrokes] = useState<number[]>([])
+  const [backspaces, setBackspaces] = useState<number[]>([])
 
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value
-    setText(value)
-    logEvent({
-      timestamp: e.timeStamp,
-      type: "change",
-      value
-    })
-  }
+  // Refs para contar en cada intervalo
+  const keystrokesRef = useRef(0)
+  const backspaceRef = useRef(0)
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    logEvent({
-      timestamp: e.timeStamp,
-      type: "keypress",
-      key: e.key
-    })
-  }
+  useEffect(() => {
+    // Escuchar teclas globalmente
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (document.activeElement === textareaRef.current) {
+        if (e.key === "Backspace") {
+          backspaceRef.current += 1
+        } else {
+          keystrokesRef.current += 1
+        }
+      }
+    }
 
-  const handleClick = (e: React.MouseEvent<HTMLTextAreaElement>) => {
-    logEvent({
-      timestamp: e.timeStamp,
-      type: "click",
-      coords: { x: e.clientX, y: e.clientY }
-    })
-  }
+    const interval = setInterval(() => {
+      setKeystrokes((prev) => [...prev, keystrokesRef.current])
+      setBackspaces((prev) => [...prev, backspaceRef.current])
+    }, 100)
 
-  const exportLog = () => {
-    const json = JSON.stringify(events, null, 2)
-    const blob = new Blob([json], { type: "application/json" })
+    window.addEventListener("keydown", handleKeyDown)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [])
+
+  const exportCSV = () => {
+    const maxLength = Math.max(
+      keystrokes.length,
+      backspaces.length,
+    )
+
+    const pad = (arr: number[]) =>
+      Array.from({ length: maxLength }, (_, i) => arr[i] ?? "")
+
+    const rows = [
+      pad(keystrokes),
+      pad(backspaces),
+    ]
+
+    const csv = rows.map((row) => row.join(",")).join("\n")
+    const blob = new Blob([csv], { type: "text/csv" })
     const url = URL.createObjectURL(blob)
+
     const a = document.createElement("a")
     a.href = url
-    a.download = "event-log.json"
+    a.download = "activity-log.csv"
     a.click()
     URL.revokeObjectURL(url)
   }
 
   return (
     <main className="max-w-2xl mx-auto mt-12 px-4">
-      <h1 className="text-3xl font-bold mb-6">Editor con seguimiento</h1>
+      <h1 className="text-3xl font-bold mb-6">Seguimiento cada 100ms</h1>
 
       <TextareaField
-        label="Tu texto"
-        placeholder="Escribí con tu propio estilo..."
-        description="Este campo guarda tus ideas, pensamientos o tareas."
+        ref={textareaRef}
+        placeholder="Escribí acá..."
         fontSize="lg"
-        rows={8}
+        rows={10}
         value={text}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-        onClick={handleClick}
+        onChange={(e) => setText(e.target.value)}
       />
 
       <div className="mt-6">
-        <Button onClick={exportLog}>📥 Exportar log en JSON</Button>
+        <Button onClick={exportCSV}>📥 Exportar CSV</Button>
       </div>
     </main>
   )
