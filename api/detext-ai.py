@@ -10,8 +10,8 @@ INTERVAL_LENGTH = 500
 # either copy them here or import them from a shared module.
 
 # Example of how to load
-clf = joblib.load("/data/copy_detector_model_030_logloss.joblib")
-threshold_data = joblib.load("/data/optimal_threshold_030_logloss.joblib")
+clf = joblib.load("data/copy_detector_model_030_logloss.joblib")
+threshold_data = joblib.load("data/optimal_threshold_030_logloss.joblib")
 best_thresh = threshold_data["optimal_threshold"]
 
 def compute_fft_features(segment):
