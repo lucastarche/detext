@@ -3,15 +3,16 @@ import joblib
 import csv
 import os
 import json
+import sys
 
-INTERVAL_LENGTH = 300
+INTERVAL_LENGTH = 500
 
 # If you need any functions from your original script (like segmenting or feature extraction),
 # either copy them here or import them from a shared module.
 
 # Example of how to load
-clf = joblib.load("data/copy_detector_model_030_logloss.joblib")
-threshold_data = joblib.load("data/optimal_threshold_030_logloss.joblib")
+clf = joblib.load("copy_detector_model_030_logloss.joblib")
+threshold_data = joblib.load("optimal_threshold_030_logloss.joblib")
 best_thresh = threshold_data["optimal_threshold"]
 
 def compute_fft_features(segment):
@@ -80,8 +81,11 @@ def extract_features(segments, feature_extractor):
 
     return np.array(features)
 
-
-def predict(rows, model, threshold):
+def predict_file(file_path, model, threshold):
+    with open(file_path, "r") as f:
+        reader = csv.reader(f)
+        rows = list(reader)
+    
     # Convert each row of strings to integers
     chars_typed = np.array([int(x) for x in rows[0]])
     backspaces = np.array([int(x) for x in rows[1]])
@@ -111,19 +115,11 @@ def predict(rows, model, threshold):
         "num_segments": len(segments)
     }
 
-from http.server import BaseHTTPRequestHandler
- 
-class handler(BaseHTTPRequestHandler):
- 
-    def do_POST(self):
-        content_length = int(self.headers.get('Content-Length', 0))
-        text = self.rfile.read(content_length).decode('utf-8')
-        response = predict(rows, clf, best_thresh)
-        response_json = json.dumps(response)
+path = sys.argv[1]
+results = predict_file(path, clf, best_thresh)
 
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(response_json)))
-        self.end_headers()
-
-        self.wfile.write(response_json.encode('utf-8'))
+print(f"Number of segments: {results['num_segments']}")
+print(f"Predictions: {results['segment_predictions']}")
+print(f"Average prediction: {np.mean(results['segment_predictions'])}")
+print(f"Percentage of segments classified as copied: {results['copy_percentage']:.2f}%")
+print(f"Overall classification: {results['overall_prediction']}")
