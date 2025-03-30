@@ -4,7 +4,7 @@ import csv
 import os
 import json
 
-INTERVAL_LENGTH = 500
+INTERVAL_LENGTH = 300
 
 # If you need any functions from your original script (like segmenting or feature extraction),
 # either copy them here or import them from a shared module.
